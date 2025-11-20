@@ -6,10 +6,21 @@
 //  Converted to use jpg instead of BMP and other minor changes
 //  
 ///
+
+/**********************************************
+*  Description: A program that create a series of 50 images of the mandelbrot to be transformed into a movie using child process, 
+* where the amount of processes depend on the user. Use ./mandel -c [integer]  to make the images with the specified number of processes.
+*  make
+*  Author: Jaden Hipe
+*  Date: 11/19/2025
+***********************************************/
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <wait.h>
+#include <string.h>
 #include "jpegrw.h"
+
 
 // local routines
 static int iteration_to_color( int i, int max );
@@ -25,21 +36,31 @@ int main( int argc, char *argv[] )
 
 	// These are the default configuration values used
 	// if no command line arguments are given.
-	const char *outfile = "mandel.jpg";
-	double xcenter = 0;
-	double ycenter = 0;
-	double xscale = 4;
+	char outfile[50];
+	//Interesting X and Y center coordinates courtesy of ChatGPT
+	double xcenter = -1.25066;
+	double ycenter = 0.02012;
+	double xscale = -20; //start at -10, go to +40 
+	double dxscale = 0.1;
 	double yscale = 0; // calc later
 	int    image_width = 1000;
 	int    image_height = 1000;
 	int    max = 1000;
+	int    num_images = 0;	//Counter for images
+	int    num_childs = 0;	//Declare number of childs (User Defined)
+
+
 
 	// For each command line argument given,
 	// override the appropriate configuration value.
-
-	while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h"))!=-1) {
+	// Make 50 images
+	// Using code from dft InClass10 activity.
+		while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h:c:"))!=-1) {
 		switch(c) 
 		{
+			case 'c':
+				num_childs = atoi(optarg);
+				break;
 			case 'x':
 				xcenter = atof(optarg);
 				break;
@@ -59,7 +80,7 @@ int main( int argc, char *argv[] )
 				max = atoi(optarg);
 				break;
 			case 'o':
-				outfile = optarg;
+				strcpy(outfile,optarg);
 				break;
 			case 'h':
 				show_help();
@@ -67,27 +88,63 @@ int main( int argc, char *argv[] )
 				break;
 		}
 	}
+		int image_per_child = 50 / num_childs;
+		int image_remainder = 50 % num_childs;
+		num_images = -image_per_child;
+		xscale=-dxscale*image_per_child;
+		for(int i = 0; i < num_childs; i++)
+		{
+		num_images += image_per_child;
+		xscale += dxscale*image_per_child;
+		int pid = fork();
+		//Child Processes running
+		if(pid == 0) 
+		{
+			//If this is final process, then final process does more to fill the 50 images needed.
+			if (i == num_childs - 1)
+				{
+					image_per_child += image_remainder;
+				}
+			for (int k  = 0; k < image_per_child; k ++)
+			{
+				
+		//Rename outfile
+		sprintf(outfile, "mandel%d.jpg", num_images);
+		num_images++;
+		xscale+=dxscale;
+		// Calculate y scale based on x scale (settable) and image sizes in X and Y (settable)
+		yscale = xscale / image_width * image_height;
 
-	// Calculate y scale based on x scale (settable) and image sizes in X and Y (settable)
-	yscale = xscale / image_width * image_height;
+		// Display the configuration of the image.
+		printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,outfile);
 
-	// Display the configuration of the image.
-	printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,outfile);
+		// Create a raw image of the appropriate size.
+		imgRawImage* img = initRawImage(image_width,image_height);
 
-	// Create a raw image of the appropriate size.
-	imgRawImage* img = initRawImage(image_width,image_height);
+		// Fill it with a black
+		setImageCOLOR(img,0);
 
-	// Fill it with a black
-	setImageCOLOR(img,0);
+		// Compute the Mandelbrot image
+		compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
 
-	// Compute the Mandelbrot image
-	compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+		// Save the image in the stated file.
+		storeJpegImageFile(img,outfile);
 
-	// Save the image in the stated file.
-	storeJpegImageFile(img,outfile);
+		// free the mallocs
+		freeRawImage(img);
+		
+			}
+			
+		exit(0);
+		}
+	}
+	
 
-	// free the mallocs
-	freeRawImage(img);
+	//Increment images
+	for (int i = 0; i < num_childs; i++)
+    {
+        wait(NULL);
+    }
 
 	return 0;
 }
