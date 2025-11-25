@@ -22,18 +22,25 @@
 #include "jpegrw.h"
 
 
+typedef struct {
+    imgRawImage* img;
+    double xmin, xmax, ymin, ymax;
+    int max;
+    int start;
+    int end;
+	} Thread;
+
 // local routines
 static int iteration_to_color( int i, int max );
 static int iterations_at_point( double x, double y, int max );
-static void compute_image( imgRawImage *img, double xmin, double xmax,
-									double ymin, double ymax, int max );
+static void compute_image(Thread* th);
 static void show_help();
 
 
 int main( int argc, char *argv[] )
 {
+	
 	char c;
-
 	// These are the default configuration values used
 	// if no command line arguments are given.
 	char outfile[50];
@@ -48,6 +55,8 @@ int main( int argc, char *argv[] )
 	int    max = 1000;
 	int    num_images = 0;	//Counter for images
 	int    num_childs = 0;	//Declare number of childs (User Defined)
+	int	   num_threads = 1;	//Number of threads (default 1)
+	
 
 
 
@@ -55,11 +64,14 @@ int main( int argc, char *argv[] )
 	// override the appropriate configuration value.
 	// Make 50 images
 	// Using code from dft InClass10 activity.
-		while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h:c:"))!=-1) {
+		while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h:c:t:"))!=-1) {
 		switch(c) 
 		{
 			case 'c':
 				num_childs = atoi(optarg);
+				break;
+			case 't'
+				num_threads = atoi(optarg);
 				break;
 			case 'x':
 				xcenter = atof(optarg);
@@ -88,10 +100,17 @@ int main( int argc, char *argv[] )
 				break;
 		}
 	}
+		//For multiprocessing
 		int image_per_child = 50 / num_childs;
 		int image_remainder = 50 % num_childs;
 		num_images = -image_per_child;
 		xscale=-dxscale*image_per_child;
+
+		//For multithreading
+		pthread_t threads[num_threads];
+		Thread thrds[num_threads];
+		int work_per_thread = image_height / num_threads;
+
 		for(int i = 0; i < num_childs; i++)
 		{
 		num_images += image_per_child;
@@ -124,8 +143,28 @@ int main( int argc, char *argv[] )
 		// Fill it with a black
 		setImageCOLOR(img,0);
 
-		// Compute the Mandelbrot image
-		compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+		// Compute the Mandelbrot image using mutithreading
+		for (int i = 0; i < num_threads; i++)
+		{
+			thrds[i].img = image;
+			thrds[i].xmin = xmin;
+			thrds[i].xmax = xmax;
+			thrds[i].ymin = ymin;
+			thrds[i].ymax = ymax;
+			thrds[i].max = max;
+
+			thrds[i].start = i * work_per_thread;
+			thrds[i].end = (i+1) * work_per_thread;
+
+			pthread_create(&threads[i], NULL, compute_image, &thrds[t]);
+		}
+
+		//Join threads
+		for (int i = 0, i < num_threads; i++)
+		{
+			pthread_join(threads[t],NULL);
+		}
+		
 
 		// Save the image in the stated file.
 		storeJpegImageFile(img,outfile);
@@ -183,28 +222,28 @@ Compute an entire Mandelbrot image, writing each point to the given bitmap.
 Scale the image to the range (xmin-xmax,ymin-ymax), limiting iterations to "max"
 */
 
-void compute_image(imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max )
+void compute_image(Thread *th)//imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max 
 {
-	int i,j;
+	Thread* t = th;
 
-	int width = img->width;
-	int height = img->height;
+	int width = t->img->width;
+	int height = t->img->height;
 
 	// For every pixel in the image...
 
-	for(j=0;j<height;j++) {
+	for(int j = t->start ;j < t->end; j++) {
 
-		for(i=0;i<width;i++) {
+		for(int i=0;i<width;i++) {
 
 			// Determine the point in x,y space for that pixel.
-			double x = xmin + i*(xmax-xmin)/width;
-			double y = ymin + j*(ymax-ymin)/height;
+			double x = t->xmin + i*(t->xmax - t->xmin)/width;
+			double y = t->ymin + j*(t->ymax - t->ymin)/height;
 
 			// Compute the iterations at that point.
-			int iters = iterations_at_point(x,y,max);
+			int iters = iterations_at_point(x,y,t->max);
 
 			// Set the pixel in the bitmap.
-			setPixelCOLOR(img,i,j,iteration_to_color(iters,max));
+			setPixelCOLOR(t->img,i,j,iteration_to_color(iters,t->max));
 		}
 	}
 }
