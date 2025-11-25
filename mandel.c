@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <wait.h>
 #include <string.h>
+#include <pthread.h>
 #include "jpegrw.h"
 
 
@@ -33,7 +34,7 @@ typedef struct {
 // local routines
 static int iteration_to_color( int i, int max );
 static int iterations_at_point( double x, double y, int max );
-static void compute_image(Thread* th);
+static void *compute_image(void* th);
 static void show_help();
 
 
@@ -54,7 +55,7 @@ int main( int argc, char *argv[] )
 	int    image_height = 1000;
 	int    max = 1000;
 	int    num_images = 0;	//Counter for images
-	int    num_childs = 0;	//Declare number of childs (User Defined)
+	int    num_childs = 1;	//Declare number of childs (default 1)
 	int	   num_threads = 1;	//Number of threads (default 1)
 	
 
@@ -67,11 +68,11 @@ int main( int argc, char *argv[] )
 		while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h:c:t:"))!=-1) {
 		switch(c) 
 		{
+			case 't':
+				num_threads = atoi(optarg);
+				break;
 			case 'c':
 				num_childs = atoi(optarg);
-				break;
-			case 't'
-				num_threads = atoi(optarg);
 				break;
 			case 'x':
 				xcenter = atof(optarg);
@@ -146,23 +147,24 @@ int main( int argc, char *argv[] )
 		// Compute the Mandelbrot image using mutithreading
 		for (int i = 0; i < num_threads; i++)
 		{
-			thrds[i].img = image;
-			thrds[i].xmin = xmin;
-			thrds[i].xmax = xmax;
-			thrds[i].ymin = ymin;
-			thrds[i].ymax = ymax;
+			thrds[i].img = img;
+			thrds[i].xmin = xcenter-xscale/2;
+			thrds[i].xmax = xcenter+xscale/2;
+			thrds[i].ymin = ycenter-yscale/2;
+			thrds[i].ymax = ycenter+yscale/2;
 			thrds[i].max = max;
 
 			thrds[i].start = i * work_per_thread;
 			thrds[i].end = (i+1) * work_per_thread;
 
-			pthread_create(&threads[i], NULL, compute_image, &thrds[t]);
+			//compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+			pthread_create(&threads[i], NULL, compute_image, &thrds[i]);
 		}
 
 		//Join threads
-		for (int i = 0, i < num_threads; i++)
+		for (int i = 0; i < num_threads; i++)
 		{
-			pthread_join(threads[t],NULL);
+			pthread_join(threads[i],NULL);
 		}
 		
 
@@ -222,7 +224,7 @@ Compute an entire Mandelbrot image, writing each point to the given bitmap.
 Scale the image to the range (xmin-xmax,ymin-ymax), limiting iterations to "max"
 */
 
-void compute_image(Thread *th)//imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max 
+void* compute_image(void* th)//imgRawImage* img, double xmin, double xmax, double ymin, double ymax, int max 
 {
 	Thread* t = th;
 
@@ -246,6 +248,8 @@ void compute_image(Thread *th)//imgRawImage* img, double xmin, double xmax, doub
 			setPixelCOLOR(t->img,i,j,iteration_to_color(iters,t->max));
 		}
 	}
+	//Returing void *
+	return NULL;
 }
 
 
