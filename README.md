@@ -18,6 +18,7 @@ Third, to create the movie file, use 'ffmpeg -imandel%d.jpg mandel.mpg' and your
 ## Time Data
 I analyzed the times that it took to complete making 50 images by running the executable. Below is a graph depicting the relationship from 1 to 20 processes:
 
+<img width="656" height="433" alt="Screenshot 2025-11-19 230442" src="https://github.com/user-attachments/assets/ba9f8a27-af5b-4783-92c3-319288abc586" />
 
 I also analyzed the times with different combinations of child processes and threads:
 
