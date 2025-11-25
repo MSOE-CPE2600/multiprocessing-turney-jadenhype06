@@ -22,7 +22,7 @@ I analyzed the times that it took to complete making 50 images by running the ex
 
 I also analyzed the times with different combinations of child processes and threads:
 
-
+<img width="447" height="157" alt="Screenshot 2025-11-25 013734" src="https://github.com/user-attachments/assets/43fd24cd-6e94-4a4b-a736-d61280d7461d" />
 
 ## Conclusions
 The "Time vs. Processes" graph shows an exponentially decaying function, where the more processes take place at the same time, the faster the program will complete the task. This makes sense, as distributing the workload is always better than putting it all on one core. Using less processes may save energy and power overall, but good computing
